@@ -1,0 +1,11 @@
+{
+  "name": "locks-handler-lambda-layer",
+  "version": "1.0.0",
+  "description": "Locks handler lambda layer",
+  "author": "Omar Vega",
+  "license": "ISC",
+  "dependencies": {
+    "moment": "^2.29.1",
+    "uuid": "^8.3.2"
+  }
+}

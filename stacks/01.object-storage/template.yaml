@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Object storage api
+Parameters:
+  Suffix:
+    Type: String
+Resources:
+  BucketStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/01.bucket/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  ObjectStorageApiGatewayStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/02.object-storage-api/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Bucket: !GetAtt BucketStack.Outputs.Bucket
+        Suffix: !Ref Suffix
+Outputs:
+  ObjectStorageBucket:
+    Description: Object storage bucket
+    Value: !GetAtt BucketStack.Outputs.Bucket
+  ObjectStorageApiGatewayId:
+    Description: Object storage api gateway id
+    Value: !GetAtt ObjectStorageApiGatewayStack.Outputs.ObjectStorageApiGatewayId
+  ObjectStorageApiGatewayEndpoint:
+    Description: Object storage api gateway endpoint
+    Value: !GetAtt ObjectStorageApiGatewayStack.Outputs.ObjectStorageApiGatewayEndpoint
+  ObjectStorageApiGatewayStage:
+    Description: Object storage api gateway stage
+    Value: !GetAtt ObjectStorageApiGatewayStack.Outputs.ObjectStorageApiGatewayStage

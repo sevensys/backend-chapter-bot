@@ -1,0 +1,14 @@
+{
+  "name": "reply-lambda-layer",
+  "version": "1.0.0",
+  "description": "Reply lambda",
+  "author": "Omar Vega",
+  "license": "ISC",
+  "dependencies": {
+    "businesscommunications": "^1.0.3",
+    "businessmessages": "^1.0.3",
+    "google-auth-library": "^7.0.2",
+    "googleapis-common": "^5.0.1",
+    "uuid": "^8.3.2"
+  }
+}

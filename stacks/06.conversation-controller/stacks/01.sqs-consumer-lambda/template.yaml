@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Sqs consumer lambda
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  QueueArn:
+    Type: String
+  QueueUrl:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  SqsConsumerLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'SqsConsumerLambdaLayer-${Suffix}'
+      CompatibleRuntimes:
+        - nodejs12.x
+      ContentUri: layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: nodejs12.x
+  SqsConsumerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'SqsConsumerLambda-${Suffix}'
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: lambda/
+      Tracing: Active
+      Timeout: 900
+      MemorySize: 128
+      PackageType: Zip
+      Environment:
+        Variables:
+          QUEUE_URL: !Ref QueueUrl
+      Tags:
+        project: backend-chapter-bot
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'sqs:*'
+              Resource: !Ref QueueArn
+      Layers:
+        - !Ref SqsConsumerLambdaLayer
+Outputs:
+  SqsConsumerLambdaArn:
+    Description: Sqs consumer lambda arn
+    Value: !GetAtt SqsConsumerLambda.Arn

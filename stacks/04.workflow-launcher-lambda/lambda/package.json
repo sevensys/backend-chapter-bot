@@ -1,0 +1,14 @@
+{
+  "name": "workflow-launcher-lambda",
+  "version": "1.0.0",
+  "description": "Lambda that restarts a workflow",
+  "main": "index.js",
+  "scripts": {
+    "test": "env StateMachineArn=machine mocha tests/unit/*"
+  },
+  "author": "ovega@edmunds.com",
+  "license": "ISC",
+  "devDependencies": {
+    "aws-sdk": "^2.821.0"
+  }
+}

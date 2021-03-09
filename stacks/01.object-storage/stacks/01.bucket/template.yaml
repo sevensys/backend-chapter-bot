@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Conversations bucket
+Parameters:
+  Suffix:
+    Type: String
+Resources:
+  ConversationsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Sub 'conversations-${AWS::AccountId}-${Suffix}'
+      Tags:
+        - Key: project
+          Value: backend-chapter-bot
+Outputs:
+  Bucket:
+    Description: Bucket
+    Value: !Ref ConversationsBucket

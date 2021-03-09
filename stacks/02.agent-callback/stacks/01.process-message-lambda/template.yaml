@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Process Message lambda
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  PartnerKey:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  ProcessMessageLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'ProcessMessageLambdaLayer-${Suffix}'
+      CompatibleRuntimes:
+        - nodejs12.x
+      ContentUri: layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: nodejs12.x
+  ProcessMessageLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'ProcessMessageLambda-${Suffix}'
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: lambda/
+      Tracing: Active
+      Timeout: 900
+      MemorySize: 128
+      PackageType: Zip
+      Environment:
+        Variables:
+          PARTNER_KEY: !Ref PartnerKey
+      Tags:
+        project: backend-chapter-bot
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Layers:
+        - !Ref ProcessMessageLambdaLayer
+Outputs:
+  LambdaArn:
+    Description: Process message lambda arn
+    Value: !GetAtt ProcessMessageLambda.Arn

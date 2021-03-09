@@ -1,0 +1,6 @@
+node_modules
+.aws-sam
+.idea
+.DS_Store
+samconfig.toml
+package-lock.json

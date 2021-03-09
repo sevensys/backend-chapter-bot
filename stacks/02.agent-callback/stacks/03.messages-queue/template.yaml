@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Messages queue
+Parameters:
+  Suffix:
+    Type: String
+Resources:
+  MessagesDlQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'MessagesDl-${Suffix}'
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+      VisibilityTimeout: 900
+      Tags:
+        - Key: project
+          Value: backend-chapter-bot
+  MessagesQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'Messages-${Suffix}'
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt MessagesDlQueue.Arn
+        maxReceiveCount: 7
+      Tags:
+        - Key: project
+          Value: backend-chapter-bot
+Outputs:
+  MessagesQueueEndpoint:
+    Description: SQS endpoint
+    Value: !Ref MessagesQueue
+  MessagesQueueQueueArn:
+    Description: SQS endpoint
+    Value: !GetAtt MessagesQueue.Arn

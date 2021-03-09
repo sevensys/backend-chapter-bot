@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Reply lambda
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  CredentialsBucket:
+    Type: String
+  CredentialsKey:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  ReplyLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'ReplyLambdaLayer-${Suffix}'
+      CompatibleRuntimes:
+        - nodejs12.x
+      ContentUri: layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: nodejs12.x
+  ReplyLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'ReplyLambda-${Suffix}'
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: lambda/
+      Tracing: Active
+      Timeout: 900
+      MemorySize: 128
+      PackageType: Zip
+      Environment:
+        Variables:
+          CREDENTIALS_BUCKET: !Ref CredentialsBucket
+          CREDENTIALS_KEY: !Ref CredentialsKey
+      Tags:
+        project: backend-chapter-bot
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectACL
+              Resource:
+                - !Sub 'arn:aws:s3:::${CredentialsBucket}/${CredentialsKey}'
+      Layers:
+        - !Ref ReplyLambdaLayer
+Outputs:
+  ReplyLambdaArn:
+    Description: Reply lambda arn
+    Value: !GetAtt ReplyLambda.Arn

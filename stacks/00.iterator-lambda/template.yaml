@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Iterator lambda
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  Suffix:
+    Type: String
+Resources:
+  IteratorLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'IteratorLambda-${Suffix}'
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: lambda/
+      Tracing: Active
+      Timeout: 5
+      MemorySize: 128
+      PackageType: Zip
+      Tags:
+        project: backend-chapter-bot
+      Policies:
+        - AWSLambdaBasicExecutionRole
+Outputs:
+  IteratorLambdaArn:
+    Description: Iterator lambda arm
+    Value: !GetAtt IteratorLambda.Arn

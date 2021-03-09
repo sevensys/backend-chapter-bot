@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  backend-chapter-bot
+Parameters:
+  CredentialsBucket:
+    Type: String
+  CredentialsKey:
+    Type: String
+  PartnerKey:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  IteratorLambdaStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/00.iterator-lambda/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  ObjectStorageStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/01.object-storage/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  AgentCallbackStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/02.agent-callback/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        ObjectStorageApiGatewayId: !GetAtt ObjectStorageStack.Outputs.ObjectStorageApiGatewayId
+        ObjectStorageApiGatewayEndpoint: !GetAtt ObjectStorageStack.Outputs.ObjectStorageApiGatewayEndpoint
+        ObjectStorageApiGatewayStage: !GetAtt ObjectStorageStack.Outputs.ObjectStorageApiGatewayStage
+        PartnerKey: !Ref PartnerKey
+        Suffix: !Ref Suffix
+  LocksHandlerStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/03.locks-handler/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  WorkflowLauncherLambdaStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/04.workflow-launcher-lambda/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  ConversationHandlerStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/05.conversation-handler/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        CredentialsBucket: !Ref CredentialsBucket
+        CredentialsKey: !Ref CredentialsKey
+        IteratorLambdaArn: !GetAtt IteratorLambdaStack.Outputs.IteratorLambdaArn
+        ObjectStorageApiGatewayId: !GetAtt ObjectStorageStack.Outputs.ObjectStorageApiGatewayId
+        ObjectStorageApiGatewayEndpoint: !GetAtt ObjectStorageStack.Outputs.ObjectStorageApiGatewayEndpoint
+        ObjectStorageApiGatewayStage: !GetAtt ObjectStorageStack.Outputs.ObjectStorageApiGatewayStage
+        WorkflowLauncherLambdaArn: !GetAtt WorkflowLauncherLambdaStack.Outputs.WorkflowLauncherLambdaArn
+        MessagesTableArn: !GetAtt AgentCallbackStack.Outputs.MessagesTableArn
+        MessagesTableName: !GetAtt AgentCallbackStack.Outputs.MessagesTableName
+        Suffix: !Ref Suffix
+  ConversationControllerStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/06.conversation-controller/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        ConversationsTableArn: !GetAtt ConversationHandlerStack.Outputs.ConversationsTableArn
+        ConversationsTableName: !GetAtt ConversationHandlerStack.Outputs.ConversationsTableName
+        ConversationHandlerWorkflowArn: !GetAtt ConversationHandlerStack.Outputs.ConversationHandlerWorkflowArn
+        WorkflowLauncherLambdaArn: !GetAtt WorkflowLauncherLambdaStack.Outputs.WorkflowLauncherLambdaArn
+        LocksHandlerLambdaArn: !GetAtt LocksHandlerStack.Outputs.LocksHandlerLambdaArn
+        IteratorLambdaArn: !GetAtt IteratorLambdaStack.Outputs.IteratorLambdaArn
+        QueueArn: !GetAtt AgentCallbackStack.Outputs.MessagesQueueArn
+        QueueUrl: !GetAtt AgentCallbackStack.Outputs.MessagesQueueUrl
+        Suffix: !Ref Suffix
+Outputs:
+  AgentCallbackApiGatewayId:
+    Description: Agent callback api gateway id
+    Value: !GetAtt AgentCallbackStack.Outputs.AgentCallbackApiGatewayId
+  AgentCallbackApiGatewayEndpoint:
+    Description: Agent callback api gateway endpoint
+    Value: !GetAtt AgentCallbackStack.Outputs.AgentCallbackApiGatewayEndpoint
+  AgentCallbackApiGatewayStage:
+    Description: Agent callback api gateway stage
+    Value: !GetAtt AgentCallbackStack.Outputs.AgentCallbackApiGatewayStage
+  ConversationControllerWorkflowArn:
+    Description: Conversation controller workflow arn
+    Value: !GetAtt ConversationControllerStack.Outputs.ConversationControllerWorkflowArn

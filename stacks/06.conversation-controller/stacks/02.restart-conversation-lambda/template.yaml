@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Restart conversation lambda
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  ConversationsTableArn:
+    Type: String
+  ConversationsTableName:
+    Type: String
+  ConversationHandlerWorkflowArn:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  RestartConversationLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'RestartConversationLambdaLayer-${Suffix}'
+      CompatibleRuntimes:
+        - nodejs12.x
+      ContentUri: layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: nodejs12.x
+  RestartConversationLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'RestartConversationLambda-${Suffix}'
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: lambda/
+      Tracing: Active
+      Timeout: 900
+      MemorySize: 128
+      PackageType: Zip
+      Environment:
+        Variables:
+          CONVERSATIONS_TABLE: !Ref ConversationsTableName
+          WORKFLOW_ARN: !Ref ConversationHandlerWorkflowArn
+      Tags:
+        project: backend-chapter-bot
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'dynamodb:*'
+              Resource: !Ref ConversationsTableArn
+            - Effect: Allow
+              Action:
+                - 'states:*'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'events:PutTargets'
+                - 'events:PutRule'
+                - 'events:DescribeRule'
+              Resource:
+                - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule'
+      Layers:
+        - !Ref RestartConversationLambdaLayer
+Outputs:
+  RestartConversationLambdaArn:
+    Description: Restart conversation lambda arn
+    Value: !GetAtt RestartConversationLambda.Arn

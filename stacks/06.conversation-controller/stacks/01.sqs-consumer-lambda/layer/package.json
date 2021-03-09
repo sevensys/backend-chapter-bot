@@ -1,0 +1,10 @@
+{
+  "name": "sqs-consumer-lambda-layer",
+  "version": "1.0.0",
+  "description": "Sqs consumer lambda layer",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Omar Vega",
+  "license": "ISC"
+}

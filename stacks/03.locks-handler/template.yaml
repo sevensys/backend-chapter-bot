@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Locks handler
+Parameters:
+  Suffix:
+    Type: String
+Resources:
+  LocksTableStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/01.locks-table/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  LocksHandlerLambdaStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/02.locks-handler-lambda/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        LocksTableArn: !GetAtt LocksTableStack.Outputs.LocksTableArn
+        LocksTableName: !GetAtt LocksTableStack.Outputs.LocksTableName
+        Suffix: !Ref Suffix
+Outputs:
+  LocksHandlerLambdaArn:
+    Description: Locks lambda handler arn
+    Value: !GetAtt LocksHandlerLambdaStack.Outputs.LocksLambdaArn

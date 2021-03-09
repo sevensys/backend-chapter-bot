@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Conversation controller workflow
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  RestartConversationLambdaArn:
+    Type: String
+  LocksHandlerLambdaArn:
+    Type: String
+  IteratorLambdaArn:
+    Type: String
+  WorkflowLauncherLambdaArn:
+    Type: String
+  SqsConsumerLambdaArn:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  ConversationControllerWorkflowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/vendedlogs/states/ConversationControllerWorkflow-${Suffix}'
+      RetentionInDays: 30
+  ConversationControllerWorkflowRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'ConversationControllerWorkflowRole-${Suffix}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub 'ConversationControllerWorkflowRolePolicy-${Suffix}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource:
+                  - !Ref IteratorLambdaArn
+                  - !Ref WorkflowLauncherLambdaArn
+                  - !Ref SqsConsumerLambdaArn
+                  - !Ref RestartConversationLambdaArn
+                  - !Ref LocksHandlerLambdaArn
+              - Effect: Allow
+                Action:
+                  - 'states:DescribeExecution'
+                  - 'states:StopExecution'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'events:PutTargets'
+                  - 'events:PutRule'
+                  - 'events:DescribeRule'
+                Resource:
+                  - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule'
+              - Effect: Allow
+                Action:
+                  - "logs:*"
+                Resource: "*"
+  ConversationControllerWorkflow:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub 'ConversationControllerWorkflow-${Suffix}'
+      Tags:
+        project: backend-chapter-bot
+      Tracing:
+        Enabled: true
+      Role: !GetAtt ConversationControllerWorkflowRole.Arn
+      Logging:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt ConversationControllerWorkflowLogGroup.Arn
+        IncludeExecutionData: true
+        Level: ALL
+      DefinitionSubstitutions:
+        RestartConversationLambdaArn: !Ref RestartConversationLambdaArn
+        LocksHandlerLambdaArn: !Ref LocksHandlerLambdaArn
+        IteratorLambdaArn: !Ref IteratorLambdaArn
+        WorkflowLauncherLambdaArn: !Ref WorkflowLauncherLambdaArn
+        SqsConsumerLambdaArn: !Ref SqsConsumerLambdaArn
+      DefinitionUri: ./step-functions/definition.asl.json
+Outputs:
+  ConversationControllerWorkflowArn:
+    Description: Conversation controller workflow arn
+    Value: !Ref ConversationControllerWorkflow

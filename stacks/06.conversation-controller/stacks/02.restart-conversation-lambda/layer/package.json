@@ -1,0 +1,7 @@
+{
+  "name": "restart-conversation-lambda-layer",
+  "version": "1.0.0",
+  "description": "Restart conversation lambda layer",
+  "author": "Omar Vega",
+  "license": "ISC"
+}

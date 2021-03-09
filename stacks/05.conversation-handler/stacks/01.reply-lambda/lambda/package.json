@@ -1,0 +1,19 @@
+{
+  "name": "reply-lambda",
+  "version": "1.0.0",
+  "description": "Reply lambda",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Omar Vega",
+  "license": "ISC",
+  "devDependencies": {
+    "aws-sdk": "^2.859.0",
+    "businesscommunications": "^1.0.3",
+    "businessmessages": "^1.0.3",
+    "google-auth-library": "^7.0.2",
+    "googleapis-common": "^5.0.1",
+    "uuid": "^8.3.2"
+  }
+}

@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Conversation handler
+Parameters:
+  CredentialsBucket:
+    Type: String
+  CredentialsKey:
+    Type: String
+  IteratorLambdaArn:
+    Type: String
+  ObjectStorageApiGatewayId:
+    Type: String
+  ObjectStorageApiGatewayEndpoint:
+    Type: String
+  ObjectStorageApiGatewayStage:
+    Type: String
+  WorkflowLauncherLambdaArn:
+    Type: String
+  MessagesTableArn:
+    Type: String
+  MessagesTableName:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  ReplyLambdaStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/01.reply-lambda/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        CredentialsBucket: !Ref CredentialsBucket
+        CredentialsKey: !Ref CredentialsKey
+        Suffix: !Ref Suffix
+  ConversationsTableStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/02.conversations-table/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  GetNextMessageLambdaStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/03.get-next-message-lambda/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        MessagesTableArn: !Ref MessagesTableArn
+        MessagesTableName: !Ref MessagesTableName
+        Suffix: !Ref Suffix
+  ConversationHandlerWorkflowStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/04.conversation-handler-workflow/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        IteratorLambdaArn: !Ref IteratorLambdaArn
+        ObjectStorageApiGatewayId: !Ref ObjectStorageApiGatewayId
+        ObjectStorageApiGatewayEndpoint: !Ref ObjectStorageApiGatewayEndpoint
+        ObjectStorageApiGatewayStage: !Ref ObjectStorageApiGatewayStage
+        ReplyLambdaArn: !GetAtt ReplyLambdaStack.Outputs.ReplyLambdaArn
+        WorkflowLauncherLambdaArn: !Ref WorkflowLauncherLambdaArn
+        GetNextMessageLambdaArn: !GetAtt GetNextMessageLambdaStack.Outputs.GetNextMessageLambdaArn
+        ConversationsTableArn: !GetAtt ConversationsTableStack.Outputs.ConversationsTableArn
+        ConversationsTable: !GetAtt ConversationsTableStack.Outputs.ConversationsTableName
+        Suffix: !Ref Suffix
+Outputs:
+  ConversationsTableArn:
+    Description: Conversations table arn
+    Value: !GetAtt ConversationsTableStack.Outputs.ConversationsTableArn
+  ConversationsTableName:
+    Description: Conversations table name
+    Value: !GetAtt ConversationsTableStack.Outputs.ConversationsTableName
+  ConversationHandlerWorkflowArn:
+    Description: Conversation handler workflow arn
+    Value: !GetAtt ConversationHandlerWorkflowStack.Outputs.ConversationHandlerWorkflowArn

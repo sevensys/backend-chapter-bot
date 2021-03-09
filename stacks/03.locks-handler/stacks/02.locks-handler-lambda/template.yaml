@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Locks lambda
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  LocksTableArn:
+    Type: String
+  LocksTableName:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  LocksLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'LocksLambdaLayer-${Suffix}'
+      CompatibleRuntimes:
+        - nodejs12.x
+      ContentUri: layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: nodejs12.x
+  LocksLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'LocksLambda-${Suffix}'
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: lambda/
+      Tracing: Active
+      Timeout: 900
+      MemorySize: 128
+      PackageType: Zip
+      Environment:
+        Variables:
+          LOCKS_TABLE: !Ref LocksTableName
+      Tags:
+        project: backend-chapter-bot
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'dynamodb:*'
+              Resource: !Ref LocksTableArn
+      Layers:
+        - !Ref LocksLambdaLayer
+Outputs:
+  LocksLambdaArn:
+    Description: Locks lambda arn
+    Value: !GetAtt LocksLambda.Arn

@@ -1,0 +1,174 @@
+{
+  "Comment": "Conversation controller",
+  "StartAt": "Initialize iterator",
+  "States": {
+    "Initialize iterator": {
+      "Type": "Pass",
+      "Result": {
+        "index": 0,
+        "step": 1,
+        "count": 3000,
+        "continue": true
+      },
+      "ResultPath": "$.Iterator",
+      "Next": "While iterator less than count"
+    },
+    "While iterator less than count": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Iterator.continue",
+          "BooleanEquals": true,
+          "Next": "Consume SQS message"
+        }
+      ],
+      "Default": "End loop"
+    },
+    "Consume SQS message": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${SqsConsumerLambdaArn}",
+        "Payload": {}
+      },
+      "ResultSelector": {
+        "AvailableMessage.$": "$.Payload.AvailableMessage",
+        "Message.$": "$.Payload.Message"
+      },
+      "ResultPath": "$.SqsConsumedMessage",
+      "Next": "Are there any messages available"
+    },
+    "Are there any messages available": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.SqsConsumedMessage.AvailableMessage",
+          "BooleanEquals": true,
+          "Next": "Acquire lock on conversation"
+        }
+      ],
+      "Default": "Wait a minute for more messages"
+    },
+    "Acquire lock on conversation": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${LocksHandlerLambdaArn}",
+        "Payload": {
+          "cmd": "acquire",
+          "lock.$": "States.Format('conversation:{}', $.SqsConsumedMessage.Message.ConversationId)",
+          "lease": 120,
+          "owner.$": "$$.Execution.Id"
+        }
+      },
+      "ResultSelector": {
+        "version.$": "$.Payload.version"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [ "ConditionalCheckFailedException" ],
+          "IntervalSeconds": 20,
+          "MaxAttempts": 4,
+          "BackoffRate": 1.5
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [ "States.ALL" ],
+          "Next": "Wait a minute to acquire lock"
+        }
+      ],
+      "ResultPath": "$.Lock",
+      "Next": "Restart conversation"
+    },
+    "Wait a minute to acquire lock": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "Acquire lock on conversation"
+    },
+    "Restart conversation": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${RestartConversationLambdaArn}",
+        "Payload": {
+          "ConversationId.$": "$.SqsConsumedMessage.Message.ConversationId"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [ "States.ALL" ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 1.5
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [ "States.ALL" ],
+          "Next": "Release lock on conversation"
+        }
+      ],
+      "ResultPath": "$.RestartConversation",
+      "Next": "Release lock on conversation"
+    },
+    "Release lock on conversation": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${LocksHandlerLambdaArn}",
+        "Payload": {
+          "cmd": "release",
+          "lock.$": "States.Format('conversation:{}', $.SqsConsumedMessage.Message.ConversationId)",
+          "owner.$": "$$.Execution.Id",
+          "version.$": "$.Lock.version"
+        }
+      },
+      "ResultSelector": {
+        "version.$": "$.Payload.version"
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [ "States.ALL" ],
+          "Next": "Increment iterator"
+        }
+      ],
+      "ResultPath": "$.Lock",
+      "Next": "Increment iterator"
+    },
+    "Wait a minute for more messages": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "Increment iterator"
+    },
+    "Increment iterator": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${IteratorLambdaArn}",
+        "Payload.$": "$.Iterator"
+      },
+      "ResultSelector": {
+        "index.$": "$.Payload.index",
+        "step.$": "$.Payload.step",
+        "count.$": "$.Payload.count",
+        "continue.$": "$.Payload.continue"
+      },
+      "ResultPath": "$.Iterator",
+      "Next": "While iterator less than count"
+    },
+    "End loop": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${WorkflowLauncherLambdaArn}",
+        "Payload": {
+          "Name.$": "$$.StateMachine.Name",
+          "StateMachineArn.$": "$$.StateMachine.Id",
+          "Input.$": "States.JsonToString($$.Execution.Input)"
+        }
+      },
+      "End": true
+    }
+  }
+}

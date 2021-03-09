@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  agent callback
+Parameters:
+  ObjectStorageApiGatewayId:
+    Type: String
+  ObjectStorageApiGatewayEndpoint:
+    Type: String
+  ObjectStorageApiGatewayStage:
+    Type: String
+  PartnerKey:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  ProcessMessageLambdaStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/01.process-message-lambda/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        PartnerKey: !Ref PartnerKey
+        Suffix: !Ref Suffix
+  MessagesTableStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/02.messages-table/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  MessagesQueueStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/03.messages-queue/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  SignatureValidationFailureTopicStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/04.signature-validation-failure-topic/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        Suffix: !Ref Suffix
+  AgentCallbackWorkflowStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/05.agent-callback-workflow/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        ProcessMessageLambdaArn: !GetAtt ProcessMessageLambdaStack.Outputs.LambdaArn
+        ReceivedMessagesTableArn: !GetAtt MessagesTableStack.Outputs.ReceivedMessagesTableArn
+        ReceivedMessagesTable: !GetAtt MessagesTableStack.Outputs.ReceivedMessagesTableName
+        MessagesTableArn: !GetAtt MessagesTableStack.Outputs.MessagesTableArn
+        MessagesTable: !GetAtt MessagesTableStack.Outputs.MessagesTableName
+        ObjectStorageApiGatewayId: !Ref ObjectStorageApiGatewayId
+        ObjectStorageApiGatewayEndpoint: !Ref ObjectStorageApiGatewayEndpoint
+        ObjectStorageApiGatewayStage: !Ref ObjectStorageApiGatewayStage
+        MessagesQueueArn: !GetAtt MessagesQueueStack.Outputs.MessagesQueueQueueArn
+        MessagesQueueUrl: !GetAtt MessagesQueueStack.Outputs.MessagesQueueEndpoint
+        SignatureValidationTopic: !GetAtt SignatureValidationFailureTopicStack.Outputs.TopicName
+        SignatureValidationTopicArn: !GetAtt SignatureValidationFailureTopicStack.Outputs.TopicArn
+        Suffix: !Ref Suffix
+  AgentCallbackApiStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/06.agent-callback-api/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        AgentCallbackWorkflowArn: !GetAtt AgentCallbackWorkflowStack.Outputs.WorkflowArn
+        Suffix: !Ref Suffix
+Outputs:
+  MessagesTableArn:
+    Description: Messages table arn
+    Value: !GetAtt MessagesTableStack.Outputs.MessagesTableArn
+  MessagesTableName:
+    Description: Messages table name
+    Value: !GetAtt MessagesTableStack.Outputs.MessagesTableName
+  AgentCallbackApiGatewayId:
+    Description: Agent callback api gateway id
+    Value: !GetAtt AgentCallbackApiStack.Outputs.ApiGatewayId
+  AgentCallbackApiGatewayEndpoint:
+    Description: Agent callback api gateway endpoint
+    Value: !GetAtt AgentCallbackApiStack.Outputs.ApiGatewayEndpoint
+  AgentCallbackApiGatewayStage:
+    Description: Agent callback api gateway stage
+    Value: !GetAtt AgentCallbackApiStack.Outputs.ApiGatewayStage
+  MessagesQueueArn:
+    Description: Messages queue arn
+    Value: !GetAtt MessagesQueueStack.Outputs.MessagesQueueQueueArn
+  MessagesQueueUrl:
+    Description: Messages queue url
+    Value: !GetAtt MessagesQueueStack.Outputs.MessagesQueueEndpoint

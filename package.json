@@ -1,0 +1,14 @@
+{
+  "name": "backend-chapter-bot",
+  "version": "1.0.0",
+  "description": "Build tool",
+  "main": "build.js",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "author": "ovega@edmunds.com",
+  "license": "ISC",
+  "devDependencies": {
+    "js-yaml": "^4.0.0"
+  }
+}

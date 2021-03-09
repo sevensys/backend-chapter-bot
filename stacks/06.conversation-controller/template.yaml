@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Conversation controller
+Parameters:
+  ConversationsTableArn:
+    Type: String
+  ConversationsTableName:
+    Type: String
+  ConversationHandlerWorkflowArn:
+    Type: String
+  WorkflowLauncherLambdaArn:
+    Type: String
+  IteratorLambdaArn:
+    Type: String
+  LocksHandlerLambdaArn:
+    Type: String
+  QueueArn:
+    Type: String
+  QueueUrl:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  SqsConsumerLambdaStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/01.sqs-consumer-lambda/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        QueueArn: !Ref QueueArn
+        QueueUrl: !Ref QueueUrl
+        Suffix: !Ref Suffix
+  RestartConversationLambdaStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/02.restart-conversation-lambda/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        ConversationsTableArn: !Ref ConversationsTableArn
+        ConversationsTableName: !Ref ConversationsTableName
+        ConversationHandlerWorkflowArn: !Ref ConversationHandlerWorkflowArn
+        Suffix: !Ref Suffix
+  ConversationControllerWorkflowStack:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ./stacks/03.conversation-controller-workflow/template.yaml
+      Tags:
+        project: backend-chapter-bot
+      Parameters:
+        RestartConversationLambdaArn: !GetAtt RestartConversationLambdaStack.Outputs.RestartConversationLambdaArn
+        IteratorLambdaArn: !Ref IteratorLambdaArn
+        LocksHandlerLambdaArn: !Ref LocksHandlerLambdaArn
+        WorkflowLauncherLambdaArn: !Ref WorkflowLauncherLambdaArn
+        SqsConsumerLambdaArn: !GetAtt SqsConsumerLambdaStack.Outputs.SqsConsumerLambdaArn
+        Suffix: !Ref Suffix
+Outputs:
+  ConversationControllerWorkflowArn:
+    Description: Conversation controller workflow arn
+    Value: !GetAtt ConversationControllerWorkflowStack.Outputs.ConversationControllerWorkflowArn

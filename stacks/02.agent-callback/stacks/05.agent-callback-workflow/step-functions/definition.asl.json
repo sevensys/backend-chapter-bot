@@ -1,0 +1,185 @@
+{
+  "Comment": "Agent workflow",
+  "StartAt": "Process message lambda",
+  "States": {
+    "Process message lambda": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ProcessMessageLambdaArn}",
+        "Payload": {
+          "Signature.$": "$.Signature",
+          "Payload.$": "$.Payload"
+        }
+      },
+      "ResultSelector": {
+        "ConversationId.$": "$.Payload.ConversationId",
+        "RequestId.$": "$.Payload.RequestId",
+        "SendTime.$": "$.Payload.SendTime",
+        "Agent.$": "$.Payload.Agent",
+        "CustomAgentId.$": "$.Payload.CustomAgentId",
+        "Type.$": "$.Payload.Type",
+        "Signature.$": "$.Payload.Signature",
+        "ValidSignature.$": "$.Payload.ValidSignature"
+      },
+      "ResultPath": "$.Message",
+      "Next": "Check if message is valid"
+    },
+    "Check if message is valid": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Message.ValidSignature",
+          "BooleanEquals": true,
+          "Next": "Insert received message record"
+        }
+      ],
+      "Default": "Notify signature validation failure"
+    },
+    "Insert received message record": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${ReceivedMessagesTable}",
+        "Item": {
+          "ConversationId": {
+            "S.$": "$.Message.ConversationId"
+          },
+          "RequestId": {
+            "S.$": "$.Message.RequestId"
+          }
+        },
+        "ConditionExpression": "attribute_not_exists(ConversationId) AND attribute_not_exists(RequestId)",
+        "ReturnValues": "NONE"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "DynamoDB.ConditionalCheckFailedException"
+          ],
+          "MaxAttempts": 1
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 1.5
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["DynamoDB.ConditionalCheckFailedException"],
+          "Next": "Notify repeated message"
+        }
+      ],
+      "ResultPath": "$.PutReceivedMessageRecord",
+      "Next": "Insert message record"
+    },
+    "Insert message record": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "${MessagesTable}",
+        "Item": {
+          "ConversationId": {
+            "S.$": "$.Message.ConversationId"
+          },
+          "RequestId": {
+            "S.$": "$.Message.RequestId"
+          },
+          "SendTime": {
+            "N.$": "States.JsonToString($.Message.SendTime)"
+          },
+          "Agent": {
+            "S.$": "$.Message.Agent"
+          },
+          "CustomAgentId": {
+            "S.$": "$.Message.CustomAgentId"
+          },
+          "Signature": {
+            "S.$": "$.Message.Signature"
+          },
+          "Type": {
+            "S.$": "$.Message.Type"
+          }
+        },
+        "ReturnValues": "NONE"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 1.5
+        }
+      ],
+      "ResultPath": "$.PutMessageRecord",
+      "Next": "Store message into S3"
+    },
+    "Store message into S3": {
+      "Type": "Task",
+      "Resource":"arn:aws:states:::apigateway:invoke",
+      "Parameters": {
+        "ApiEndpoint": "${ObjectStorageApiGatewayEndpoint}",
+        "Method": "PUT",
+        "Headers": {
+          "Content-Type": ["application/json"]
+        },
+        "Stage": "${ObjectStorageApiGatewayStage}",
+        "Path.$": "States.Format('/{}/messages/{}.json', $.Message.ConversationId, $.Message.RequestId)",
+        "RequestBody.$": "States.StringToJson($.Payload)",
+        "AuthType": "IAM_ROLE"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 1.5
+        }
+      ],
+      "ResultPath": "$.StoreMessageIntoS3",
+      "Next": "Enqueue message"
+    },
+    "Enqueue message": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "${MessagesQueueUrl}",
+        "MessageBody.$": "States.JsonToString($.Message)"
+      },
+      "ResultSelector": {
+        "statusCode": 200,
+        "message": "Message received"
+      },
+      "End": true
+    },
+    "Notify repeated message": {
+      "Type": "Pass",
+      "Result": {
+        "statusCode": 403,
+        "message": "Repeated message"
+      },
+      "End": true
+    },
+    "Notify signature validation failure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${SignatureValidationTopicArn}",
+        "Message.$": "States.JsonToString($.Message)"
+      },
+      "ResultSelector": {
+        "statusCode": 403,
+        "message": "Signature validation failure"
+      },
+      "End": true
+    }
+  }
+}

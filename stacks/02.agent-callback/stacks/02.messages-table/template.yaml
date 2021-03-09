@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  messages table
+Parameters:
+  Suffix:
+    Type: String
+Resources:
+  ReceivedMessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'ReceivedMessages-${Suffix}'
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: ConversationId
+          KeyType: HASH
+        - AttributeName: RequestId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: ConversationId
+          AttributeType: S
+        - AttributeName: RequestId
+          AttributeType: S
+      Tags:
+        - Key: project
+          Value: backend-chapter-bot
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'Messages-${Suffix}'
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: ConversationId
+          KeyType: HASH
+        - AttributeName: RequestId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: ConversationId
+          AttributeType: S
+        - AttributeName: RequestId
+          AttributeType: S
+        - AttributeName: SendTime
+          AttributeType: N
+      LocalSecondaryIndexes:
+        - IndexName: MessagesBySendTime
+          KeySchema:
+            - AttributeName: ConversationId
+              KeyType: HASH
+            - AttributeName: SendTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: project
+          Value: backend-chapter-bot
+Outputs:
+  ReceivedMessagesTableArn:
+    Description: Received messages table arn
+    Value: !GetAtt ReceivedMessagesTable.Arn
+  ReceivedMessagesTableName:
+    Description: Received messages table name
+    Value: !Sub 'ReceivedMessages-${Suffix}'
+  MessagesTableArn:
+    Description: Messages table arn
+    Value: !GetAtt MessagesTable.Arn
+  MessagesTableName:
+    Description: Messages table name
+    Value: !Sub 'Messages-${Suffix}'

@@ -1,0 +1,225 @@
+{
+  "Comment": "Conversation handler workflow",
+  "StartAt": "Initialize iterator",
+  "States": {
+    "Initialize iterator": {
+      "Type": "Pass",
+      "Result": {
+        "index": 0,
+        "step": 1,
+        "count": 3000,
+        "continue": true
+      },
+      "ResultPath": "$.Iterator",
+      "Next": "While iterator less than count"
+    },
+    "While iterator less than count": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Iterator.continue",
+          "BooleanEquals": true,
+          "Next": "Get next message"
+        }
+      ],
+      "Default": "Relaunch workflow"
+    },
+    "Get next message": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${GetNextMessageLambdaArn}",
+        "Payload": {
+          "ConversationId.$": "$.ConversationId"
+        }
+      },
+      "ResultSelector": {
+        "MessageAvailable.$": "$.Payload.MessageAvailable",
+        "Message.$": "$.Payload.Message"
+      },
+      "ResultPath": "$.NextMessage",
+      "Next": "Verify if message is available"
+    },
+    "Verify if message is available": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.NextMessage.MessageAvailable",
+              "BooleanEquals": true
+            },
+            {
+              "Variable": "$.NextMessage.Message.Type",
+              "StringEquals": "message"
+            }
+          ],
+          "Next": "Load message from S3"
+        }
+      ],
+      "Default": "Wait a minute"
+    },
+    "Load message from S3": {
+      "Type": "Task",
+      "Resource":"arn:aws:states:::apigateway:invoke",
+      "Parameters": {
+        "ApiEndpoint": "${ObjectStorageApiGatewayEndpoint}",
+        "Method": "GET",
+        "Headers": {
+          "Accept": ["application/json"]
+        },
+        "Stage": "${ObjectStorageApiGatewayStage}",
+        "Path.$": "States.Format('{}/messages/{}.json', $.ConversationId, $.NextMessage.Message.RequestId)",
+        "RequestBody": {},
+        "AuthType": "IAM_ROLE"
+      },
+      "ResultSelector": {
+        "Payload.$": "$.ResponseBody.message"
+      },
+      "ResultPath": "$.NextMessage.Message",
+      "Next": "Typing started"
+    },
+    "Wait a minute": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "Increment iterator"
+    },
+    "Typing started": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ReplyLambdaArn}",
+        "Payload": {
+          "conversationId.$": "$.ConversationId",
+          "isEvent": true,
+          "resource": {
+            "eventType": "TYPING_STARTED",
+            "representative": {
+              "displayName.$": "$$.Execution.Id",
+              "representativeType": "BOT"
+            }
+          }
+        }
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [ "States.ALL" ],
+          "ResultPath": "$.TypingStarted.error",
+          "Next": "Echo message"
+        }
+      ],
+      "ResultSelector": {
+        "output.$": "$.Payload"
+      },
+      "ResultPath": "$.TypingStarted",
+      "Next": "Echo message"
+    },
+    "Echo message": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ReplyLambdaArn}",
+        "Payload": {
+          "conversationId.$": "$.ConversationId",
+          "isEvent": false,
+          "resource": {
+            "text.$": "$.NextMessage.Message.Payload.text",
+            "representative": {
+              "displayName.$": "$$.Execution.Id",
+              "representativeType": "BOT"
+            }
+          }
+        }
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [ "States.ALL" ],
+          "ResultPath": "$.EchoMessage.error",
+          "Next": "Typing stopped"
+        }
+      ],
+      "ResultSelector": {
+        "output.$": "$.Payload"
+      },
+      "ResultPath": "$.EchoMessage",
+      "Next": "Typing stopped"
+    },
+    "Typing stopped": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ReplyLambdaArn}",
+        "Payload": {
+          "conversationId.$": "$.ConversationId",
+          "isEvent": true,
+          "resource": {
+            "eventType": "TYPING_STOPPED",
+            "representative": {
+              "displayName.$": "$$.Execution.Id",
+              "representativeType": "BOT"
+            }
+          }
+        }
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [ "States.ALL" ],
+          "ResultPath": "$.TypingStopped.error",
+          "Next": "Increment iterator"
+        }
+      ],
+      "ResultSelector": {
+        "output.$": "$.Payload"
+      },
+      "ResultPath": "$.TypingStopped",
+      "Next": "Increment iterator"
+    },
+    "Increment iterator": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${IteratorLambdaArn}",
+        "Payload.$": "$.Iterator"
+      },
+      "ResultSelector": {
+        "index.$": "$.Payload.index",
+        "step.$": "$.Payload.step",
+        "count.$": "$.Payload.count",
+        "continue.$": "$.Payload.continue"
+      },
+      "ResultPath": "$.Iterator",
+      "Next": "While iterator less than count"
+    },
+    "Relaunch workflow": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${WorkflowLauncherLambdaArn}",
+        "Payload": {
+          "Name.$": "$$.StateMachine.Name",
+          "StateMachineArn.$": "$$.StateMachine.Id",
+          "Input.$": "States.JsonToString($$.Execution.Input)"
+        }
+      },
+      "ResultPath": "$.RelaunchWorkflow",
+      "Next": "Update workflow id"
+    },
+    "Update workflow id": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${ConversationsTable}",
+        "Key": {
+          "ConversationId": {
+            "S.$": "$.ConversationId"
+          }
+        },
+        "UpdateExpression": "set ExecutionId = :ExecutionId",
+        "ExpressionAttributeValues": {
+          ":ExecutionId": { "S.$": "$.RelaunchWorkflow.Payload"}
+        }
+      },
+      "End": true
+    }
+  }
+}

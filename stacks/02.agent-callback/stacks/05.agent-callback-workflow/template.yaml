@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Agent callback workflow
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  ProcessMessageLambdaArn:
+    Type: String
+  ReceivedMessagesTableArn:
+    Type: String
+  ReceivedMessagesTable:
+    Type: String
+  MessagesTableArn:
+    Type: String
+  MessagesTable:
+    Type: String
+  ObjectStorageApiGatewayId:
+    Type: String
+  ObjectStorageApiGatewayEndpoint:
+    Type: String
+  ObjectStorageApiGatewayStage:
+    Type: String
+  MessagesQueueArn:
+    Type: String
+  MessagesQueueUrl:
+    Type: String
+  SignatureValidationTopic:
+    Type: String
+  SignatureValidationTopicArn:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  AgentCallbackWorkflowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/vendedlogs/states/AgentCallbackWorkflow-${Suffix}'
+      RetentionInDays: 30
+  AgentCallbackWorkflowRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'AgentCallbackWorkflowRole-${Suffix}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub 'AgentCallbackWorkflowPolicy-${Suffix}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource:
+                  - !Ref ProcessMessageLambdaArn
+              - Effect: Allow
+                Action:
+                  - 'sqs:SendMessage'
+                Resource:
+                  - !Ref MessagesQueueArn
+              - Effect: Allow
+                Action:
+                  - 'execute-api:Invoke'
+                Resource:
+                  - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ObjectStorageApiGatewayId}/${ObjectStorageApiGatewayStage}/PUT/*'
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:GetItem'
+                Resource:
+                  - !Ref MessagesTableArn
+                  - !Ref ReceivedMessagesTableArn
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                Resource:
+                  - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${SignatureValidationTopic}'
+              - Effect: Allow
+                Action:
+                  - "logs:*"
+                Resource: "*"
+  AgentCallbackWorkflow:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub 'AgentCallbackWorkflow-${Suffix}'
+      Tags:
+        project: backend-chapter-bot
+      Tracing:
+        Enabled: true
+      Role: !GetAtt AgentCallbackWorkflowRole.Arn
+      Logging:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt AgentCallbackWorkflowLogGroup.Arn
+        IncludeExecutionData: true
+        Level: ALL
+      Type: EXPRESS
+      DefinitionSubstitutions:
+        ProcessMessageLambdaArn: !Ref ProcessMessageLambdaArn
+        MessagesTable: !Ref MessagesTable
+        ReceivedMessagesTable: !Ref ReceivedMessagesTable
+        ObjectStorageApiGatewayEndpoint: !Ref ObjectStorageApiGatewayEndpoint
+        ObjectStorageApiGatewayStage: !Ref ObjectStorageApiGatewayStage
+        MessagesQueueUrl: !Ref MessagesQueueUrl
+        SignatureValidationTopicArn: !Ref SignatureValidationTopicArn
+      DefinitionUri: ./step-functions/definition.asl.json
+Outputs:
+  WorkflowArn:
+    Description: Agent callback workflow arn
+    Value: !Ref AgentCallbackWorkflow

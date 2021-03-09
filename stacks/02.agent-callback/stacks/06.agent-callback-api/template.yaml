@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Agent callback api
+Parameters:
+  AgentCallbackWorkflowArn:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  AgentCallbackLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'AgentCallbackLambdaLayer-${Suffix}'
+      CompatibleRuntimes:
+        - nodejs12.x
+      ContentUri: layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: nodejs12.x
+  AgentCallbackApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub 'AgentCallbackApiGateway-${Suffix}'
+      Description: Agent callback api gateway http
+      Tags:
+        project: backend-chapter-bot
+      StageName: agent
+      EndpointConfiguration:
+        Type: REGIONAL
+      TracingEnabled: true
+  AgentCallbackLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'AgentCallbackLambda-${Suffix}'
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: lambda/
+      Tracing: Active
+      Timeout: 900
+      MemorySize: 128
+      PackageType: Zip
+      Environment:
+        Variables:
+          AGENT_CALLBACK_WORKFLOW_ARN: !Ref AgentCallbackWorkflowArn
+      Tags:
+        project: backend-chapter-bot
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'states:StartSyncExecution'
+              Resource:
+                - !Ref AgentCallbackWorkflowArn
+      Layers:
+        - !Ref AgentCallbackLambdaLayer
+      Events:
+        AgentCallbackApi:
+          Type: Api
+          Properties:
+            Method: post
+            Path: /callback
+            RestApiId: !Ref AgentCallbackApiGateway
+Outputs:
+  ApiGatewayId:
+    Description: Agent callback api gateway id
+    Value: !Ref AgentCallbackApiGateway
+  ApiGatewayEndpoint:
+    Description: Agent callback api gateway endpoint
+    Value: !Sub "${AgentCallbackApiGateway}.execute-api.${AWS::Region}.amazonaws.com"
+  ApiGatewayStage:
+    Description: Agent callback api gateway stage
+    Value: agent

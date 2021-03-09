@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Workflow launcher lambda
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  Suffix:
+    Type: String
+Resources:
+  WorkflowLauncherLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'WorkflowLauncherLambdaLayer-${Suffix}'
+      CompatibleRuntimes:
+        - nodejs12.x
+      ContentUri: layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: nodejs12.x
+  WorkflowLauncherLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'WorkflowLauncherLambda-${Suffix}'
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: lambda/
+      Tracing: Active
+      Timeout: 120
+      MemorySize: 128
+      PackageType: Zip
+      Tags:
+        project: backend-chapter-bot
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'states:StartExecution'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'states:DescribeExecution'
+                - 'states:StopExecution'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - 'events:PutTargets'
+                - 'events:PutRule'
+                - 'events:DescribeRule'
+              Resource:
+                - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule'
+      Layers:
+        - !Ref WorkflowLauncherLambdaLayer
+Outputs:
+  WorkflowLauncherLambdaArn:
+    Description: WorkflowLauncher lambda arm
+    Value: !GetAtt WorkflowLauncherLambda.Arn

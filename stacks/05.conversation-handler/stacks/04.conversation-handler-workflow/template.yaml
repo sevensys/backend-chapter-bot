@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Conversations workflow
+Transform:
+  - AWS::Serverless-2016-10-31
+Parameters:
+  IteratorLambdaArn:
+    Type: String
+  ObjectStorageApiGatewayId:
+    Type: String
+  ObjectStorageApiGatewayEndpoint:
+    Type: String
+  ObjectStorageApiGatewayStage:
+    Type: String
+  ReplyLambdaArn:
+    Type: String
+  WorkflowLauncherLambdaArn:
+    Type: String
+  GetNextMessageLambdaArn:
+    Type: String
+  ConversationsTableArn:
+    Type: String
+  ConversationsTable:
+    Type: String
+  Suffix:
+    Type: String
+Resources:
+  ConversationHandlerWorkflowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/vendedlogs/states/ConversationHandlerWorkflow-${Suffix}'
+      RetentionInDays: 30
+  ConversationHandlerWorkflowRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'ConversationHandlerWorkflowRole-${Suffix}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub 'ConversationHandlerWorkflowPolicy-${Suffix}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource:
+                  - !Ref IteratorLambdaArn
+                  - !Ref ReplyLambdaArn
+                  - !Ref WorkflowLauncherLambdaArn
+                  - !Ref GetNextMessageLambdaArn
+              - Effect: Allow
+                Action:
+                  - 'execute-api:Invoke'
+                Resource:
+                  - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ObjectStorageApiGatewayId}/${ObjectStorageApiGatewayStage}/GET/*'
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:*'
+                Resource:
+                  - !Ref ConversationsTableArn
+              - Effect: Allow
+                Action:
+                  - "logs:*"
+                Resource: "*"
+  ConversationHandlerWorkflow:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub 'ConversationHandlerWorkflow-${Suffix}'
+      Tags:
+        project: backend-chapter-bot
+      Tracing:
+        Enabled: true
+      Role: !GetAtt ConversationHandlerWorkflowRole.Arn
+      Logging:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt ConversationHandlerWorkflowLogGroup.Arn
+        IncludeExecutionData: true
+        Level: ALL
+      DefinitionSubstitutions:
+        GetNextMessageLambdaArn: !Ref GetNextMessageLambdaArn
+        ObjectStorageApiGatewayEndpoint: !Ref ObjectStorageApiGatewayEndpoint
+        ObjectStorageApiGatewayStage: !Ref ObjectStorageApiGatewayStage
+        ReplyLambdaArn: !Ref ReplyLambdaArn
+        IteratorLambdaArn: !Ref IteratorLambdaArn
+        ConversationsTable: !Ref ConversationsTable
+        WorkflowLauncherLambdaArn: !Ref WorkflowLauncherLambdaArn
+      DefinitionUri: ./step-functions/definition.asl.json
+Outputs:
+  ConversationHandlerWorkflowArn:
+    Description: Conversation handler workflow arn
+    Value: !Ref ConversationHandlerWorkflow

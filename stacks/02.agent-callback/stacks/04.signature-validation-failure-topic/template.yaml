@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Signature validation topic
+Parameters:
+  Suffix:
+    Type: String
+Resources:
+  SignatureValidationFailureTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'SignatureValidationFailureTopic-${Suffix}'
+      DisplayName: Signature validation failure topic
+      Tags:
+        - Key: project
+          Value: backend-chapter-bot
+Outputs:
+  TopicArn:
+    Description: Signature validation failure topic arn
+    Value: !Ref SignatureValidationFailureTopic
+  TopicName:
+    Description: Signature validation failure topic name
+    Value: !Sub 'SignatureValidationFailureTopic-${Suffix}'
